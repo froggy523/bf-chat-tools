@@ -1,0 +1,46 @@
+{
+  "name": "@bitfieldcreek/halo-scan",
+  "version": "0.1.0",
+  "description": "Stdio MCP server: read-only codebase Q&A tools for AI models (overview, search, symbols, git).",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "Bitfield Creek",
+  "homepage": "https://www.bitfieldcreek.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/froggy523/halo-scan.git"
+  },
+  "bugs": {
+    "url": "https://github.com/froggy523/halo-scan/issues"
+  },
+  "keywords": [
+    "mcp",
+    "codebase",
+    "search",
+    "symbols",
+    "stdio",
+    "ai-tools"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "bin": {
+    "halo-scan": "src/cli.mjs"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "start": "node src/cli.mjs",
+    "test": "node --test"
+  }
+}
