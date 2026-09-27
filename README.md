@@ -221,15 +221,68 @@ npm run pack:check
 against local repos with different toolsets and reports calls per question,
 prompt/completion tokens, and per-tool pick counts. Tools the model never picks
 are cull candidates; tools picked only with `--hints` have a description
-problem rather than a usefulness problem. The first run of this (195 runs,
-three models) is what cut the surface from 35 to 26 tools: `type_hierarchy`,
-`doc_toc`, `recent_focus` and `packages_map` were never or almost never picked,
-and `get_symbols`, `read_many`, `imports_of`, `manifest_summary` and
-`symbol_history` were folded into their parent tools as parameters. Roughly
-60 of 97 tool errors were models calling names that do not exist (`search`,
-`open_file`, …), which is where the unlisted aliases come from. The historical
-`baseline19` toolset still runs; names it lists that no longer exist are
-skipped with a warning.
+problem rather than a usefulness problem. The historical `baseline19` toolset
+still runs; names it lists that no longer exist are skipped with a warning.
+
+#### Results (Sep 2026)
+
+22 questions (orient / change / quality / file / symbol / debug / deps /
+surface) over three local repos: a Node MCP host (`halo-agent`), a C# ASP.NET
+solution (`aura-redirector`) and this repo. Ollama cloud models, no hints,
+`maxSteps` 20. *Calls* are tool calls per question; *prompt tok* is the total
+prompt tokens per question across every turn (what you wait for and pay for);
+*schema tok* is the first-turn prompt, i.e. the fixed per-turn cost of
+exposing the toolset.
+
+**Step 1 — did the shortcut tools help?** `baseline19` (the surface before the
+shortcut tools) vs the 35-tool set, paired per question cell:
+
+| model | toolset | tools | answered | calls | prompt tok | schema tok | error calls |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-oss:20b | baseline19 | 19 | 62/78 | 11.8 | 85.0k | 2.4k | 61 |
+| gpt-oss:20b | full | 35 | 67/78 | **7.8** (−34%) | 71.1k (−16%) | 4.8k | 36 |
+| gpt-oss:120b | baseline19 | 19 | 33/39 | 11.5 | 106.7k | 2.4k | 19 |
+| gpt-oss:120b | full | 35 | 36/39 | **7.4** (−36%) | 66.9k (−37%) | 4.9k | 14 |
+| kimi-k2.7-code | baseline19 | 19 | 36/39 | 17.7 | 79.6k | 2.3k | 4 |
+| kimi-k2.7-code | full | 35 | 39/39 | **4.6** (−74%) | 27.5k (−65%) | 4.8k | 0 |
+
+The savings are concentrated where one structured call replaces a
+grep → read → outline loop: *change* questions went 11.1 → 2.3 calls and
+*quality* 12.9 → 4.8 on gpt-oss:20b; *orient* barely moved (9.4 → 8.6) because
+`repo_overview` was already doing that job. A stronger model leans on the
+shortcuts harder, not less. Injecting the “Suggested flow” as a hint
+(`--hints`, gpt-oss:20b) brought calls to 6.9 and errors to 18 but did not
+rescue any never-picked tool.
+
+**Step 2 — what to cull.** Across all three models with the 35-tool set,
+`type_hierarchy`, `doc_toc`, `recent_focus` and `packages_map` were never or
+almost never picked, and `get_symbols`, `read_many`, `imports_of`,
+`manifest_summary` and `symbol_history` were used rarely enough that folding
+them into their parent tools as parameters costs nothing. 97 tool errors on
+gpt-oss:20b, roughly 60 of them calls to names that do not exist (`search`,
+`open_file`, `search_file`, …); that is where the unlisted aliases come from.
+
+**Step 3 — parity check.** Same questions, the 26-tool set:
+
+| model | tools | answered | calls | prompt tok | schema tok | error calls | alias calls absorbed |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| gpt-oss:20b | 35 → 26 | 67/78 → 67/78 | 7.8 → 7.9 | 71.1k → 64.0k (−10%) | 4.8k → 4.1k | 36 → 32 | 32 (`open_file` ×21, `search` ×9) |
+| gpt-oss:120b | 35 → 26 | 36/39 → 38/39 | 7.4 → 7.9 | 66.9k → 71.8k (+7%) | 4.9k → 4.1k | 14 → 13 | 20 (`search_file` ×7, `open_file` ×7, `print_tree` ×2) |
+
+Calls per question are within run-to-run noise (the 120b set is a single
+repeat), answer rate held or improved, schema overhead dropped 14%, and the
+aliases turned most of the hallucinated-name errors into successful calls.
+Still never picked by either gpt-oss model without hints: `symbol_context`,
+`locate`, `symbol_search`, `config_key_usage` — kept because kimi does reach
+for `symbol_context`, but they are the next candidates if the surface needs to
+shrink further.
+
+**Real host caveat.** With the `bf-agent` driver (gpt-oss:20b, 16 runs) the
+agent made 10.2 calls per question but only 0.2 reached halo-scan: bf-agent
+registers MCP tools lazily behind `describe_tool` / `call_mcp_tool` and its own
+`read_file` / `grep` built-ins win the name collision. The numbers above
+measure tool selection when the toolset is exposed natively; a host that hides
+MCP tools behind a bridge will not see the same gains.
 
 ```bash
 # baseline19 vs full on every configured repo, via Ollama /api/chat
