@@ -1,6 +1,6 @@
 {
   "name": "@bitfieldcreek/halo-scan",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Stdio MCP server: read-only codebase Q&A tools for AI models (overview, search, symbols, git).",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
