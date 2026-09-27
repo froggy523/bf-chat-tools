@@ -151,8 +151,17 @@ test("initialize handshake reports halo-scan", () => {
 test("tools/list includes Q&A surface", async () => {
   const tools = await client.listTools();
   const names = tools.map((t) => t.name).sort();
+  assert.equal(names.length, 26, `expected 26 tools, got ${names.length}: ${names.join(", ")}`);
+  for (const culled of ["imports_of", "recent_focus", "manifest_summary", "doc_toc", "type_hierarchy", "symbol_history", "get_symbols", "read_many", "packages_map"]) {
+    assert.ok(!names.includes(culled), `culled tool ${culled} still listed`);
+  }
   for (const expected of [
     "repo_overview",
+    "project_conventions",
+    "entrypoint_map",
+    "tests_for",
+    "dir_digest",
+    "config_surface",
     "read_file",
     "list_dir",
     "grep_search",
@@ -162,6 +171,17 @@ test("tools/list includes Q&A surface", async () => {
     "find_symbol",
     "find_references",
     "git_history",
+    "changed_symbols",
+    "file_brief",
+    "symbol_context",
+    "locate",
+    "symbol_search",
+    "who_imports",
+    "config_key_usage",
+    "unused_exports",
+    "test_inventory",
+    "http_surface",
+    "markers",
   ]) {
     assert.ok(names.includes(expected), `missing tool ${expected}`);
   }
@@ -206,6 +226,32 @@ test("get_symbol and file_outline over the wire", async () => {
   assert.match(outline, /^9 const TOTAL \[exported\]/m);
 });
 
+test("shortcut tools work over the wire", async () => {
+  const ctx = await client.callTool("symbol_context", { name: "add" });
+  assert.match(ctx, /## Definition\nsrc\/math\.mjs:1-3 function add/);
+  assert.match(ctx, /src\/main\.mjs\s+\(module level\)/);
+
+  const loc = await client.callTool("locate", { path: "src/math.mjs", line: 6 });
+  assert.match(loc, /in: function boom/);
+  assert.match(loc, /^>6\|/m);
+
+  const many = await client.callTool("read_file", { paths: ["package.json", "README.md"] });
+  assert.match(many, /## package\.json/);
+  assert.match(many, /## README\.md/);
+});
+
+test("unlisted aliases resolve over the wire", async () => {
+  const search = await client.callTool("search", { query: "function add" });
+  assert.match(search, /src\/math\.mjs:1:/);
+  const opened = await client.callTool("open_file", { path: "src/math.mjs", start_line: 1, end_line: 3 });
+  assert.match(opened, /function add/);
+  const many = await client.callTool("read_many", { paths: ["package.json", "README.md"] });
+  assert.match(many, /## package\.json/);
+  const syms = await client.callTool("get_symbols", { names: ["add", "boom"] });
+  assert.match(syms, /## add\n/);
+  assert.match(syms, /## boom\n/);
+});
+
 test("path escape is rejected", async () => {
   await assert.rejects(
     () => client.callTool("read_file", { path: "../outside.txt" }),
@@ -214,5 +260,66 @@ test("path escape is rejected", async () => {
 });
 
 test("unknown tool returns isError", async () => {
-  await assert.rejects(() => client.callTool("nope", {}), /Unknown tool/);
+  await assert.rejects(() => client.callTool("nope", {}), /Unknown tool 'nope'\. Available tools: .*grep_search/);
+});
+
+test("--tools allowlist, --exclude-tools and --stats", async () => {
+  const statsFile = path.join(fixtureDir, "stats", "calls.jsonl");
+  const filtered = await TestClient.connect(process.execPath, [
+    CLI,
+    "--cwd",
+    fixtureDir,
+    "--tools",
+    "read_file,list_dir,get_symbol",
+    "--exclude-tools=get_symbol",
+    "--stats",
+    statsFile,
+  ]);
+  try {
+    const names = (await filtered.listTools()).map((t) => t.name).sort();
+    assert.deepEqual(names, ["list_dir", "read_file"]);
+
+    await filtered.callTool("read_file", { path: "README.md" });
+    await filtered.callTool("read_file", { path: "README.md", limit: 1 });
+    await assert.rejects(() => filtered.callTool("get_symbol", { name: "add" }), /Unknown tool/);
+    await assert.rejects(() => filtered.callTool("read_file", { path: "missing.txt" }));
+    await filtered.callTool("open_file", { path: "README.md", limit: 1 });
+    await assert.rejects(() => filtered.callTool("search", { query: "x" }), /Unknown tool/);
+  } finally {
+    await filtered.close();
+  }
+
+  const { readFile } = await import("node:fs/promises");
+  const rows = (await readFile(statsFile, "utf8"))
+    .split("\n")
+    .filter(Boolean)
+    .map((l) => JSON.parse(l));
+  assert.equal(rows.length, 6);
+  assert.deepEqual(
+    rows.map((r) => [r.tool, r.isError, r.unknown, r.alias ?? null]),
+    [
+      ["read_file", false, false, null],
+      ["read_file", false, false, null],
+      ["get_symbol", true, true, null],
+      ["read_file", true, false, null],
+      ["read_file", false, false, "open_file"],
+      ["search", true, true, null],
+    ],
+  );
+  assert.ok(rows[0].chars > 0);
+  assert.deepEqual(rows[1].args, { path: "README.md", limit: 1 });
+  assert.equal(typeof rows[0].ms, "number");
+});
+
+test("--tools with an unknown name exits with a usage error", async () => {
+  const child = spawn(process.execPath, [CLI, "--cwd", fixtureDir, "--tools", "read_file,nope"], {
+    stdio: ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  let stderr = "";
+  child.stderr.on("data", (c) => (stderr += c));
+  child.stdout.resume();
+  const code = await new Promise((resolve) => child.on("close", resolve));
+  assert.equal(code, 2);
+  assert.match(stderr, /Unknown tool 'nope'/);
 });

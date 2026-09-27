@@ -2,7 +2,7 @@
  * Public library entry — toolset factory for embedding without the MCP CLI.
  */
 
-export { createToolset } from "./tools/index.mjs";
+export { createToolset, listToolNames, resolveToolCall, TOOL_ALIASES } from "./tools/index.mjs";
 export { runMcpServer } from "./mcp-server.mjs";
 export {
   parseOutline,

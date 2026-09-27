@@ -5,7 +5,8 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
-import { enclosingTag, getOutline, isCodeFile } from "../outline.mjs";
+import { renderBody, renderContext } from "../analysis.mjs";
+import { enclosingSymbol, enclosingTag, getOutline, isCodeFile } from "../outline.mjs";
 import {
   collectFiles,
   globToRegExp,
@@ -53,10 +54,18 @@ export function createSearchTools({ workspaceRoot }) {
             type: "integer",
             description: `Stop after this many matches (default ${DEFAULT_MAX_MATCHES}, max ${MAX_MATCHES_CAP}).`,
           },
+          expand: {
+            type: "string",
+            enum: ["none", "symbol"],
+            description:
+              "'symbol' returns the deduplicated bodies of the functions/classes that contain the matches " +
+              "(capped by expand_lines each) instead of one line per hit. Replaces grep + N get_symbol calls.",
+          },
+          expand_lines: { type: "integer", description: "With expand='symbol': max lines per body (default 60, max 300)." },
         },
         required: ["pattern"],
       },
-      async execute({ pattern, path: searchPath, glob, case_insensitive, max_results }) {
+      async execute({ pattern, path: searchPath, glob, case_insensitive, max_results, expand, expand_lines }) {
         if (!pattern) throw new Error("pattern must not be empty.");
         let regex;
         try {
@@ -91,7 +100,10 @@ export function createSearchTools({ workspaceRoot }) {
           }
         }
 
+        const expandSymbols = expand === "symbol";
+        const expandLines = Math.min(Math.max(5, expand_lines ?? 60), 300);
         const matches = [];
+        const structured = []; // {rel, line, sym, lines} for expand mode
         let filesWithMatches = 0;
         let hitLimit = false;
         for (const rel of candidates) {
@@ -113,6 +125,7 @@ export function createSearchTools({ workspaceRoot }) {
               outline = isCodeFile(rel) ? await getOutline(path.join(root, rel)) : null;
             }
             matches.push(`${rel}:${i + 1}: ${lines[i].trim().slice(0, MAX_LINE_CHARS)}${enclosingTag(outline, i + 1)}`);
+            if (expandSymbols) structured.push({ rel, line: i + 1, sym: enclosingSymbol(outline, i + 1), lines });
             if (matches.length >= maxMatches) {
               hitLimit = true;
               break;
@@ -132,6 +145,33 @@ export function createSearchTools({ workspaceRoot }) {
           );
         }
         if (scanTruncated) notes.push(`only the first ${MAX_FILES_SCANNED} files were scanned`);
+
+        if (expandSymbols) {
+          // One body per (file, enclosing symbol); matches outside any symbol get a small context window.
+          const groups = new Map();
+          for (const s of structured) {
+            const key = s.sym ? `${s.rel}\u0000${s.sym.line}` : `${s.rel}\u0000L${s.line}`;
+            let g = groups.get(key);
+            if (!g) {
+              g = { rel: s.rel, sym: s.sym, lines: s.lines, hitLines: [] };
+              groups.set(key, g);
+            }
+            g.hitLines.push(s.line);
+          }
+          const blocks = [];
+          for (const g of groups.values()) {
+            if (g.sym) {
+              const body = renderBody(g.rel, g.sym, g.lines, expandLines, { markLine: g.hitLines[0] }).text;
+              blocks.push(`matches @${g.hitLines.join(",")}\n${body}`);
+            } else {
+              blocks.push(renderContext(g.rel, g.lines, g.hitLines[0], 3));
+            }
+          }
+          const header = `${matches.length} match(es) in ${filesWithMatches} file(s), ${groups.size} enclosing symbol(s)${notes.length ? ` (${notes.join("; ")})` : ""}:`;
+          const out = globFallbackNote ? [globFallbackNote, header, ...blocks] : [header, ...blocks];
+          return truncateOutput(out.join("\n\n"));
+        }
+
         const header = `${matches.length} match(es) in ${filesWithMatches} file(s)${notes.length ? ` (${notes.join("; ")})` : ""}:`;
         const out = globFallbackNote ? [globFallbackNote, header, ...matches] : [header, ...matches];
         return truncateOutput(out.join("\n"));

@@ -341,15 +341,69 @@ function indentOf(line) {
 }
 
 /** Remove string literals and comments (approximate, per line) before bracket counting. */
-const REGEX_LITERAL =
-  /(^|[(,=:[!&|?{};+\s])\/(?![/*])(?:[^/\\\n[]|\\.|\[(?:[^\]\\]|\\.)*\])+\/[dgimsuy]*/g;
+
+/** Characters after which a `/` starts a regex literal rather than a division. */
+const REGEX_PREFIX = /[(,=:[!&|?{};+\-*%<>~^]$|\b(?:return|typeof|case|do|else|in|of|instanceof|new|delete|void|throw|yield|await)$|^$/;
+
+/**
+ * JS/TS: single left-to-right pass that blanks strings, template literals, regex
+ * literals and comments together, so a quote inside a regex (or a slash inside a
+ * string) cannot desynchronise the bracket count.
+ */
+function stripJsNoise(line) {
+  let out = "";
+  let i = 0;
+  const n = line.length;
+  while (i < n) {
+    const ch = line[i];
+    if (ch === '"' || ch === "'" || ch === "`") {
+      let j = i + 1;
+      while (j < n && line[j] !== ch) j += line[j] === "\\" ? 2 : 1;
+      out += '""';
+      i = j + 1;
+      continue;
+    }
+    if (ch === "/") {
+      const next = line[i + 1];
+      if (next === "/") break; // line comment: drop the rest
+      if (next === "*") {
+        const end = line.indexOf("*/", i + 2);
+        if (end === -1) break;
+        i = end + 2;
+        continue;
+      }
+      if (REGEX_PREFIX.test(out.trimEnd())) {
+        let j = i + 1;
+        let inClass = false;
+        for (; j < n; j++) {
+          const c = line[j];
+          if (c === "\\") {
+            j++;
+            continue;
+          }
+          if (inClass) {
+            if (c === "]") inClass = false;
+          } else if (c === "[") inClass = true;
+          else if (c === "/") break;
+        }
+        while (j + 1 < n && /[dgimsuyv]/.test(line[j + 1])) j++;
+        out += '""';
+        i = j + 1;
+        continue;
+      }
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
 
 function stripNoise(line, lang) {
+  if (lang === "js") return stripJsNoise(line);
   let s = line.replace(STRING_LITERAL, '""');
   if (lang === "python" || lang === "ruby") {
     s = s.replace(/#.*$/, "");
   } else {
-    if (lang === "js") s = s.replace(REGEX_LITERAL, '$1""');
     s = s.replace(/\\./g, "").replace(/\/\/.*$/, "").replace(/\/\*.*?\*\//g, "");
   }
   return s;
@@ -457,7 +511,7 @@ const IMPORT_PATTERNS = {
   python: [/^\s*import\s+([\w.]+(?:\s*,\s*[\w.]+)*)/, /^\s*from\s+([\w.]+)\s+import\b/],
   go: [/^\s*(?:import\s+)?(?:\w+\s+)?"([^"]+)"\s*$/],
   rust: [/^\s*(?:pub\s+)?use\s+(\w+(?:::\w+)*(?:::\{[^}]*\}|::\*)?)/, /^\s*(?:extern\s+crate|mod)\s+(\w+)\s*;/],
-  "clike-oo": [/^\s*(?:import|using)\s+(?:static\s+)?([\w.]+)/],
+  "clike-oo": [/^\s*(?:global\s+)?(?:import|using)\s+(?:static\s+)?(?!var\b)([\w.]+)\*?\s*(?:;|$)/, /^\s*(?:global\s+)?using\s+\w+\s*=\s*([\w.]+)\s*;/],
   kotlin: [/^\s*import\s+([\w.]+)/],
   ruby: [/^\s*require(?:_relative)?\s+['"]([^'"]+)['"]/],
   php: [/^\s*use\s+([\w\\]+)/, /^\s*(?:require|include)(?:_once)?\s*\(?\s*['"]([^'"]+)['"]/],

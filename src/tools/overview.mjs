@@ -6,7 +6,8 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-import { SKIP_DIRS, truncateOutput } from "../workspace.mjs";
+import { manifestSummary, packagesMap } from "../manifests.mjs";
+import { collectFiles, SKIP_DIRS, truncateOutput } from "../workspace.mjs";
 
 const KEY_FILES = [
   "README.md",
@@ -119,31 +120,6 @@ async function sampleLanguages(root, maxFiles = 800) {
     .map(([lang, n]) => `${lang} (${n})`);
 }
 
-function summarizePackageJson(text) {
-  try {
-    const pkg = JSON.parse(text);
-    const lines = [];
-    if (pkg.name) lines.push(`name: ${pkg.name}`);
-    if (pkg.version) lines.push(`version: ${pkg.version}`);
-    if (pkg.description) lines.push(`description: ${pkg.description}`);
-    if (pkg.type) lines.push(`type: ${pkg.type}`);
-    if (pkg.bin) {
-      const bins = typeof pkg.bin === "string" ? [pkg.name ?? "bin"] : Object.keys(pkg.bin);
-      lines.push(`bin: ${bins.join(", ")}`);
-    }
-    if (pkg.scripts && typeof pkg.scripts === "object") {
-      lines.push(`scripts: ${Object.keys(pkg.scripts).slice(0, 12).join(", ")}`);
-    }
-    const deps = Object.keys(pkg.dependencies ?? {});
-    const dev = Object.keys(pkg.devDependencies ?? {});
-    if (deps.length) lines.push(`dependencies (${deps.length}): ${deps.slice(0, 15).join(", ")}${deps.length > 15 ? "…" : ""}`);
-    if (dev.length) lines.push(`devDependencies (${dev.length}): ${dev.slice(0, 10).join(", ")}${dev.length > 10 ? "…" : ""}`);
-    return lines.join("\n");
-  } catch {
-    return null;
-  }
-}
-
 /**
  * @param {{workspaceRoot: string}} ctx
  * @returns {import("../mcp-server.mjs").McpTool[]}
@@ -155,9 +131,11 @@ export function createOverviewTools({ workspaceRoot }) {
     {
       name: "repo_overview",
       description:
-        "High-level snapshot of the workspace: top-level listing, detected languages, key manifest " +
-        "summaries (package.json etc.), README head, and a short git status. Call this first when " +
-        "answering questions about an unfamiliar codebase.",
+        "High-level snapshot of the workspace: top-level listing, detected languages, manifest summary " +
+        "(direct dependencies, engines, scripts, lockfile — package.json, pyproject, Cargo, go.mod, pom.xml, " +
+        "Gradle, .sln/.csproj), monorepo packages / solution projects when present, README head, and a " +
+        "short git status. Call this first for an unfamiliar codebase; pass manifest to summarise one " +
+        "specific manifest file instead.",
       inputSchema: {
         type: "object",
         properties: {
@@ -165,9 +143,13 @@ export function createOverviewTools({ workspaceRoot }) {
             type: "boolean",
             description: "Include the first ~40 lines of README (default true).",
           },
+          manifest: {
+            type: "string",
+            description: "Summarise this manifest file (relative path) instead of auto-detecting the root ones.",
+          },
         },
       },
-      async execute({ include_readme = true } = {}) {
+      async execute({ include_readme = true, manifest } = {}) {
         const sections = [];
         sections.push(`# Workspace overview`);
         sections.push(`root: ${root}`);
@@ -200,20 +182,22 @@ export function createOverviewTools({ workspaceRoot }) {
           sections.push(present.join(", "));
         }
 
-        const pkgText = await safeRead(root, "package.json", 100_000);
-        if (pkgText) {
-          const summary = summarizePackageJson(pkgText);
-          if (summary) {
-            sections.push(`\n## package.json`);
-            sections.push(summary);
+        try {
+          const { sections: manifestSections, found, lockfiles } = await manifestSummary(root, { manifest });
+          if (found) {
+            sections.push(`\n## Manifests${lockfiles.length ? `  (lockfiles: ${lockfiles.join(", ")})` : ""}`);
+            sections.push(...manifestSections.map((s) => s.replace(/^\n## /, "\n### ")));
           }
+        } catch (err) {
+          sections.push(`\n## Manifests\n(${err.message})`);
         }
 
-        for (const manifest of ["pyproject.toml", "Cargo.toml", "go.mod"]) {
-          const text = await safeRead(root, manifest, 2500);
-          if (text) {
-            sections.push(`\n## ${manifest}`);
-            sections.push(text);
+        if (!manifest) {
+          const { files } = await collectFiles(root, root);
+          const packages = await packagesMap(root, files, { max: 40 });
+          if (packages) {
+            sections.push("\n## Packages / projects");
+            sections.push(packages.join("\n"));
           }
         }
 

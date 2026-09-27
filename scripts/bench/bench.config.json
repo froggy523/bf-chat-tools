@@ -1,0 +1,159 @@
+{
+  "$comment": "Tool-usage benchmark for halo-scan. `toolsets` are named allowlists; `baseline19` is the toolset before the shortcut tools landed, `original10` the first commit. Names no longer registered (imports_of, recent_focus, manifest_summary, doc_toc were culled/merged) are skipped with a warning so the historical baselines still run. `full` means every registered tool. Question `repos` restricts a question to named repos; omit it for repo-agnostic questions.",
+  "model": "gpt-oss:20b-cloud",
+  "baseUrl": "http://127.0.0.1:11434",
+  "maxSteps": 20,
+  "wallClockSec": 240,
+  "toolsets": {
+    "original10": [
+      "repo_overview", "read_file", "list_dir", "grep_search", "find_files",
+      "get_symbol", "file_outline", "find_symbol", "find_references", "git_history"
+    ],
+    "baseline19": [
+      "repo_overview", "read_file", "list_dir", "grep_search", "find_files",
+      "get_symbol", "file_outline", "find_symbol", "find_references", "git_history",
+      "project_conventions", "entrypoint_map", "imports_of", "tests_for", "recent_focus",
+      "dir_digest", "manifest_summary", "config_surface", "doc_toc"
+    ],
+    "full": "*"
+  },
+  "$commentBaselineOptions": "Options added to pre-existing tools alongside the shortcuts. They are stripped from the schema when running a non-full toolset so the baseline is honest.",
+  "baselineStripOptions": {
+    "grep_search": ["expand"],
+    "find_references": ["group_by"],
+    "repo_overview": ["manifest"],
+    "get_symbol": ["names"],
+    "read_file": ["paths"]
+  },
+  "repos": {
+    "halo-agent": { "path": "d:/source/repos/halo/halo-agent" },
+    "aura-redirector": { "path": "d:/source/repos/halo/aura-redirector" },
+    "bf-chat-tools": { "path": "d:/source/repos/halo/bf-chat-tools" }
+  },
+  "questions": [
+    {
+      "id": "orient-repo",
+      "category": "orient",
+      "prompt": "What is this repository, what language and framework is it built with, and how do I run its tests? Keep the answer to a short paragraph."
+    },
+    {
+      "id": "orient-conventions",
+      "category": "orient",
+      "prompt": "Are there any agent or contributor rules in this repo (AGENTS.md, CONTRIBUTING, lint/format configs, CI)? Summarize what a contributor must follow."
+    },
+    {
+      "id": "orient-config",
+      "category": "orient",
+      "prompt": "Which environment variables and ports does this project expect to be configured? List names only."
+    },
+    {
+      "id": "orient-structure",
+      "category": "orient",
+      "prompt": "Describe the top-level structure of the source tree: which folders hold what, roughly how big each is, and where the entry point is."
+    },
+    {
+      "id": "change-recent",
+      "category": "change",
+      "prompt": "Which functions or classes changed in the last 5 commits, and which test files cover them?"
+    },
+    {
+      "id": "quality-tests",
+      "category": "quality",
+      "prompt": "What test files exist and roughly what do they cover? Name the three largest test files by number of test cases."
+    },
+    {
+      "id": "quality-todos",
+      "category": "quality",
+      "prompt": "List the TODO / FIXME / HACK comments in the code, grouped by the function they sit in."
+    },
+    {
+      "id": "quality-dead",
+      "category": "quality",
+      "prompt": "Are there exported functions or classes that nothing else in the repository uses? Name up to ten."
+    },
+    {
+      "id": "file-brief-loop",
+      "category": "file",
+      "repos": ["halo-agent"],
+      "prompt": "Tell me about src/agent-loop.mjs: what it exports, what it depends on, who imports it, and which tests exercise it."
+    },
+    {
+      "id": "symbol-context-compact",
+      "category": "symbol",
+      "repos": ["halo-agent"],
+      "prompt": "Explain compactMessages: what it does, everything that calls it, and which tests cover it."
+    },
+    {
+      "id": "symbol-refactor-registry",
+      "category": "symbol",
+      "repos": ["halo-agent"],
+      "prompt": "I want to rename ToolRegistry.register. Show me its body and every call site grouped by the calling function so I can judge the blast radius."
+    },
+    {
+      "id": "hierarchy-errors",
+      "category": "symbol",
+      "repos": ["halo-agent"],
+      "prompt": "Which classes in this repo extend Error, and where are they thrown?"
+    },
+    {
+      "id": "trace-locate",
+      "category": "debug",
+      "repos": ["halo-agent"],
+      "prompt": "I got this stack trace. Which functions are involved and what does the innermost one do?\n\nError: MCP request 'tools/call' timed out after 15000ms\n    at Timeout._onTimeout (file:///d:/source/repos/halo/halo-agent/src/mcp-client.mjs:151:16)\n    at McpClient.callTool (file:///d:/source/repos/halo/halo-agent/src/mcp-client.mjs:179:31)\n    at AgentLoop.run (file:///d:/source/repos/halo/halo-agent/src/agent-loop.mjs:400:20)"
+    },
+    {
+      "id": "history-symbol",
+      "category": "change",
+      "repos": ["halo-agent"],
+      "prompt": "When did the AgentLoop.run method last change, and what was the commit about?"
+    },
+    {
+      "id": "deps-who-imports",
+      "category": "deps",
+      "repos": ["halo-agent"],
+      "prompt": "Which files import node:child_process, and is anything from @aws-sdk actually used in src/?"
+    },
+    {
+      "id": "routes-redirector",
+      "category": "surface",
+      "repos": ["aura-redirector"],
+      "prompt": "List the HTTP API routes this service exposes (method and path) and where each is defined."
+    },
+    {
+      "id": "file-brief-cs",
+      "category": "file",
+      "repos": ["aura-redirector"],
+      "prompt": "Tell me about src/Aura.Redirector.Contracts/ApiRoutes.cs: what it defines, who references it, and which tests exercise it."
+    },
+    {
+      "id": "symbol-context-guard",
+      "category": "symbol",
+      "repos": ["aura-redirector"],
+      "prompt": "Explain the GuardEvaluator class: its public methods, everything that calls it, and which tests cover it."
+    },
+    {
+      "id": "packages-solution",
+      "category": "orient",
+      "repos": ["aura-redirector"],
+      "prompt": "Which projects make up this solution, and how do they depend on each other?"
+    },
+    {
+      "id": "symbol-context-outline",
+      "category": "symbol",
+      "repos": ["bf-chat-tools"],
+      "prompt": "Explain getOutline in src/outline.mjs: what it does, every caller grouped by file and function, and the tests that cover it."
+    },
+    {
+      "id": "file-brief-tools-index",
+      "category": "file",
+      "repos": ["bf-chat-tools"],
+      "prompt": "Tell me about src/tools/index.mjs: what it exports, what it imports, who imports it, and which tests exercise it."
+    },
+    {
+      "id": "config-key-usage",
+      "category": "deps",
+      "repos": ["bf-chat-tools", "halo-agent"],
+      "prompt": "Where is the HALO_SCAN_ROOT or HALO_WALL_CLOCK_SECONDS environment variable read in code, and where (if anywhere) is it defined in config or example files?"
+    }
+  ]
+}

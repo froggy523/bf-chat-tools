@@ -8,10 +8,10 @@
   "homepage": "https://www.bitfieldcreek.com",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/froggy523/halo-scan.git"
+    "url": "git+https://github.com/froggy523/bf-chat-tools.git"
   },
   "bugs": {
-    "url": "https://github.com/froggy523/halo-scan/issues"
+    "url": "https://github.com/froggy523/bf-chat-tools/issues"
   },
   "keywords": [
     "mcp",
@@ -41,6 +41,9 @@
   },
   "scripts": {
     "start": "node src/cli.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "bench": "node scripts/bench/run-bench.mjs run",
+    "prepublishOnly": "npm test",
+    "pack:check": "npm pack --dry-run"
   }
 }

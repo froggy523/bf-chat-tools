@@ -5,6 +5,8 @@
 
 import readline from "node:readline";
 
+import { resolveToolCall } from "./tools/index.mjs";
+
 /**
  * @typedef {object} McpTool
  * @property {string} name
@@ -21,7 +23,22 @@ import readline from "node:readline";
  * @param {NodeJS.ReadableStream} [options.stdin]
  * @param {NodeJS.WritableStream} [options.stdout]
  * @param {(line: string) => void} [options.onStderr]
+ * @param {(record: ToolCallRecord) => void} [options.onToolCall] Called after
+ *   every tools/call (including unknown-tool and thrown errors) with timing
+ *   and output size; used by `--stats`.
  * @returns {Promise<void>} Resolves when stdin closes.
+ */
+
+/**
+ * @typedef {object} ToolCallRecord
+ * @property {string} name
+ * @property {object} args
+ * @property {number} ms
+ * @property {number} chars Length of the text returned to the client.
+ * @property {boolean} isError
+ * @property {boolean} unknown True when no tool with that name is registered.
+ * @property {string|null} alias The name the client asked for when it was an
+ *   alias (see TOOL_ALIASES); `name` is then the tool that actually ran.
  */
 export function runMcpServer({
   protocolVersion,
@@ -30,6 +47,7 @@ export function runMcpServer({
   stdin = process.stdin,
   stdout = process.stdout,
   onStderr,
+  onToolCall,
 }) {
   const byName = new Map(tools.map((t) => [t.name, t]));
 
@@ -93,18 +111,41 @@ export function runMcpServer({
     }
 
     if (msg.method === "tools/call") {
-      const name = msg.params?.name;
-      const args = msg.params?.arguments ?? {};
-      const tool = byName.get(name);
+      const requested = String(msg.params?.name ?? "");
+      const resolved = resolveToolCall(byName, requested, msg.params?.arguments ?? {});
+      const tool = resolved?.tool;
+      const args = resolved?.args ?? msg.params?.arguments ?? {};
+      const started = Date.now();
+      const record = (text, isError, unknown = false) => {
+        if (!onToolCall) return;
+        try {
+          onToolCall({
+            name: tool?.name ?? requested,
+            alias: resolved?.alias ?? null,
+            args: args ?? {},
+            ms: Date.now() - started,
+            chars: text.length,
+            isError,
+            unknown,
+          });
+        } catch {
+          // stats must never break the protocol
+        }
+      };
       if (!tool) {
-        reply(msg.id, textResult(`Unknown tool '${name}'.`, true));
+        const text = `Unknown tool '${requested}'. Available tools: ${[...byName.keys()].join(", ")}.`;
+        reply(msg.id, textResult(text, true));
+        record(text, true, true);
         return;
       }
       try {
-        const value = await tool.execute(args ?? {});
-        reply(msg.id, textResult(formatToolResult(value)));
+        const text = formatToolResult(await tool.execute(args ?? {}));
+        reply(msg.id, textResult(text));
+        record(text, false);
       } catch (err) {
-        reply(msg.id, textResult(err?.message ?? String(err), true));
+        const text = err?.message ?? String(err);
+        reply(msg.id, textResult(text, true));
+        record(text, true);
       }
       return;
     }
