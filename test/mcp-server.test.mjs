@@ -36,6 +36,8 @@ class TestClient {
     this.nextId = 1;
     this.pending = new Map();
     this.closed = false;
+    this.notifications = [];
+    this._listChangedWaiters = [];
     let buffer = "";
     child.stdout.on("data", (chunk) => {
       buffer += chunk;
@@ -50,7 +52,13 @@ class TestClient {
         } catch {
           continue;
         }
-        if (msg.id === undefined) continue;
+        if (msg.id === undefined) {
+          this.notifications.push(msg);
+          if (msg.method === "notifications/tools/list_changed") {
+            for (const w of this._listChangedWaiters.splice(0)) w();
+          }
+          continue;
+        }
         const entry = this.pending.get(msg.id);
         if (!entry) continue;
         this.pending.delete(msg.id);
@@ -67,6 +75,16 @@ class TestClient {
         e.reject(new Error("server exited"));
       }
       this.pending.clear();
+    });
+  }
+
+  waitListChanged(ms = 5_000) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("timeout waiting for list_changed")), ms);
+      this._listChangedWaiters.push(() => {
+        clearTimeout(timer);
+        resolve();
+      });
     });
   }
 
@@ -322,4 +340,52 @@ test("--tools with an unknown name exits with a usage error", async () => {
   const code = await new Promise((resolve) => child.on("close", resolve));
   assert.equal(code, 2);
   assert.match(stderr, /Unknown tool 'nope'/);
+});
+
+test("--profile base lists activate_pack; activate_pack expands tools/list", async () => {
+  const profiled = await TestClient.connect(process.execPath, [
+    CLI,
+    "--cwd",
+    fixtureDir,
+    "--profile",
+    "base",
+  ]);
+  try {
+    const names = (await profiled.listTools()).map((t) => t.name);
+    assert.ok(names.includes("activate_pack"));
+    assert.ok(names.includes("repo_overview"));
+    assert.ok(!names.includes("http_surface"));
+    assert.ok(!names.includes("symbol_context"));
+
+    const wait = profiled.waitListChanged();
+    const result = await profiled.callTool("activate_pack", { pack: "web" });
+    assert.match(result, /"added":\s\[\s*"http_surface"/);
+    await wait;
+
+    const after = (await profiled.listTools()).map((t) => t.name);
+    assert.ok(after.includes("http_surface"));
+    assert.ok(
+      profiled.notifications.some((n) => n.method === "notifications/tools/list_changed"),
+    );
+  } finally {
+    await profiled.close();
+  }
+});
+
+test("initialize advertises listChanged under --profile base", async () => {
+  const child = spawn(process.execPath, [CLI, "--cwd", fixtureDir, "--profile", "base"], {
+    stdio: ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  const client = new TestClient(child);
+  try {
+    const result = await client.request("initialize", {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+      clientInfo: { name: "halo-scan-test", version: "0.0.0" },
+    });
+    assert.equal(result.capabilities?.tools?.listChanged, true);
+  } finally {
+    await client.close();
+  }
 });

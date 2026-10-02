@@ -105,6 +105,25 @@ and `--stats <file>` appends one JSON line per `tools/call` (name, args, ms,
 chars, isError) and prints a per-tool summary to stderr on exit. The same
 `include` / `exclude` options are accepted by `createToolset()`.
 
+### Profiles / packs
+
+To grow the catalog without paying the full schema cost every turn, tools are
+grouped into packs. `--profile` selects which packs appear in `tools/list`:
+
+| Profile | Tools |
+| --- | --- |
+| *(default)* / `full` | All 26 tools |
+| `base` | Orientation, fs, search, core symbols, git + `activate_pack` |
+| `symbols` / `quality` / `web` / `config` | `base` ∪ that pack + `activate_pack` |
+| `auto` | Fingerprint the repo: `base` + up to 2 secondary packs (priority `symbols` > `quality` > `web` > `config`) + `activate_pack` |
+
+`activate_pack` expands the live toolset and emits `notifications/tools/list_changed`
+so hosts can re-list. Newly added tools are available on the next turn. Library
+embedders should use `createManagedToolset({ profile: "auto" })` and pass the
+returned `registry` to `runMcpServer`.
+
+Aura Wire’s enhanced-tools spawn uses `--profile auto`.
+
 ### Suggested flow
 
 Pick the entry point that matches the question, then narrow:
@@ -198,13 +217,26 @@ bf-agent --mcp "node d:/source/repos/halo/bf-chat-tools/src/cli.mjs --cwd ."
 ## Library use
 
 ```js
-import { createToolset, runMcpServer } from "@bitfieldcreek/halo-scan";
+import { createToolset, createManagedToolset, runMcpServer } from "@bitfieldcreek/halo-scan";
 
+// Full static set (default):
 const tools = createToolset({ workspaceRoot: process.cwd() });
 await runMcpServer({
   protocolVersion: "2024-11-05",
   serverInfo: { name: "halo-scan", version: "0.1.0" }, // match package.json
   tools,
+});
+
+// Fingerprinted packs + activate_pack (Wire uses this via --profile auto):
+const { registry, listChanged } = await createManagedToolset({
+  workspaceRoot: process.cwd(),
+  profile: "auto",
+});
+await runMcpServer({
+  protocolVersion: "2024-11-05",
+  serverInfo: { name: "halo-scan", version: "0.1.0" },
+  registry: listChanged ? registry : undefined,
+  tools: listChanged ? undefined : registry.list(),
 });
 ```
 

@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createToolset } from "./tools/index.mjs";
+import { createManagedToolset, listPackNames } from "./tools/index.mjs";
 import { runMcpServer } from "./mcp-server.mjs";
 
 const PROTOCOL_VERSION = "2024-11-05";
@@ -27,12 +27,17 @@ function printHelp() {
   process.stderr.write(`Halo Scan — read-only codebase Q&A MCP server (stdio)
 
 Usage:
-  halo-scan [--cwd <dir>] [--tools <a,b,…>] [--exclude-tools <a,b,…>] [--stats <file>]
+  halo-scan [--cwd <dir>] [--profile <name>] [--tools <a,b,…>] [--exclude-tools <a,b,…>] [--stats <file>]
   halo-scan --help
 
 Options:
   --cwd <dir>             Workspace root (default: HALO_SCAN_ROOT or process cwd)
-  --tools <a,b,…>         Expose only these tools (allowlist)
+  --profile <name>        Tool pack profile: auto | base | full | ${listPackNames()
+    .filter((p) => p !== "base")
+    .join(" | ")}
+                          auto fingerprints the repo (base + up to 2 secondary packs)
+                          and exposes activate_pack for the rest. Default: full set.
+  --tools <a,b,…>         Expose only these tools (allowlist; applied after --profile)
   --exclude-tools <a,b,…> Hide these tools
   --stats <file>          Append one JSON line per tools/call (name, args, ms, chars,
                           isError) and print a per-tool summary to stderr on exit
@@ -45,6 +50,7 @@ Tools:
   change    changed_symbols, git_history
   quality   tests_for, test_inventory, unused_exports, config_key_usage, http_surface
   read      read_file, list_dir
+  meta      activate_pack (when --profile is not full)
   Unlisted aliases (search, open_file, get_symbols, read_many, symbol_history, …) map onto these.
 
 Attach with Bitfield Agent:
@@ -65,6 +71,7 @@ export function parseArgs(argv) {
   const options = {
     cwd: process.env.HALO_SCAN_ROOT || process.cwd(),
     help: false,
+    profile: null,
     include: [],
     exclude: [],
     stats: null,
@@ -86,6 +93,9 @@ export function parseArgs(argv) {
     } else if (flag === "--cwd" || flag === "--root") {
       options.cwd = value();
       if (!options.cwd) throw new Error(`${flag} requires a directory path.`);
+    } else if (flag === "--profile") {
+      options.profile = value();
+      if (!options.profile) throw new Error(`${flag} requires a profile name.`);
     } else if (flag === "--tools") {
       options.include.push(...splitList(value(), flag));
     } else if (flag === "--exclude-tools") {
@@ -159,10 +169,11 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   const root = path.resolve(options.cwd);
-  let tools;
+  let managed;
   try {
-    tools = createToolset({
+    managed = await createManagedToolset({
       workspaceRoot: root,
+      profile: options.profile,
       include: options.include,
       exclude: options.exclude,
     });
@@ -177,7 +188,8 @@ export async function main(argv = process.argv.slice(2)) {
   await runMcpServer({
     protocolVersion: PROTOCOL_VERSION,
     serverInfo: SERVER_INFO,
-    tools,
+    registry: managed.listChanged ? managed.registry : undefined,
+    tools: managed.listChanged ? undefined : managed.registry.list(),
     onStderr: (line) => process.stderr.write(`${line}\n`),
     onToolCall: stats?.onToolCall,
   });

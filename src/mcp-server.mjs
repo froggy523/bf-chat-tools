@@ -5,7 +5,10 @@
 
 import readline from "node:readline";
 
+import { createToolRegistry } from "./tool-registry.mjs";
 import { resolveToolCall } from "./tools/index.mjs";
+
+export { createToolRegistry } from "./tool-registry.mjs";
 
 /**
  * @typedef {object} McpTool
@@ -13,20 +16,6 @@ import { resolveToolCall } from "./tools/index.mjs";
  * @property {string} [description]
  * @property {object} [inputSchema]
  * @property {(args: object) => Promise<unknown>|unknown} execute
- */
-
-/**
- * @param {object} options
- * @param {string} options.protocolVersion
- * @param {{name: string, version: string}} options.serverInfo
- * @param {McpTool[]} options.tools
- * @param {NodeJS.ReadableStream} [options.stdin]
- * @param {NodeJS.WritableStream} [options.stdout]
- * @param {(line: string) => void} [options.onStderr]
- * @param {(record: ToolCallRecord) => void} [options.onToolCall] Called after
- *   every tools/call (including unknown-tool and thrown errors) with timing
- *   and output size; used by `--stats`.
- * @returns {Promise<void>} Resolves when stdin closes.
  */
 
 /**
@@ -40,20 +29,45 @@ import { resolveToolCall } from "./tools/index.mjs";
  * @property {string|null} alias The name the client asked for when it was an
  *   alias (see TOOL_ALIASES); `name` is then the tool that actually ran.
  */
+
+/**
+ * @typedef {import("./tool-registry.mjs").ToolRegistry} ToolRegistry
+ */
+
+/**
+ * @param {object} options
+ * @param {string} options.protocolVersion
+ * @param {{name: string, version: string}} options.serverInfo
+ * @param {McpTool[]} [options.tools] Initial tools when `registry` is omitted.
+ * @param {ToolRegistry} [options.registry] Mutable registry (profiles / activate_pack).
+ * @param {NodeJS.ReadableStream} [options.stdin]
+ * @param {NodeJS.WritableStream} [options.stdout]
+ * @param {(line: string) => void} [options.onStderr]
+ * @param {(record: ToolCallRecord) => void} [options.onToolCall] Called after
+ *   every tools/call (including unknown-tool and thrown errors) with timing
+ *   and output size; used by `--stats`.
+ * @returns {Promise<void>} Resolves when stdin closes.
+ */
 export function runMcpServer({
   protocolVersion,
   serverInfo,
   tools,
+  registry: registryOpt,
   stdin = process.stdin,
   stdout = process.stdout,
   onStderr,
   onToolCall,
 }) {
-  const byName = new Map(tools.map((t) => [t.name, t]));
+  const registry = registryOpt ?? createToolRegistry(tools ?? []);
+  const listChanged = Boolean(registryOpt);
 
   function write(payload) {
     stdout.write(`${JSON.stringify(payload)}\n`);
   }
+
+  registry.onChange = () => {
+    write({ jsonrpc: "2.0", method: "notifications/tools/list_changed", params: {} });
+  };
 
   function reply(id, result) {
     write({ jsonrpc: "2.0", id, result });
@@ -88,7 +102,7 @@ export function runMcpServer({
     if (msg.method === "initialize") {
       reply(msg.id, {
         protocolVersion,
-        capabilities: { tools: {} },
+        capabilities: { tools: listChanged ? { listChanged: true } : {} },
         serverInfo,
       });
       return;
@@ -100,8 +114,9 @@ export function runMcpServer({
     }
 
     if (msg.method === "tools/list") {
+      const listed = registry.list();
       reply(msg.id, {
-        tools: tools.map((t) => ({
+        tools: listed.map((t) => ({
           name: t.name,
           description: t.description ?? "",
           inputSchema: t.inputSchema ?? { type: "object", properties: {} },
@@ -112,6 +127,7 @@ export function runMcpServer({
 
     if (msg.method === "tools/call") {
       const requested = String(msg.params?.name ?? "");
+      const byName = registry.map();
       const resolved = resolveToolCall(byName, requested, msg.params?.arguments ?? {});
       const tool = resolved?.tool;
       const args = resolved?.args ?? msg.params?.arguments ?? {};
