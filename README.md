@@ -89,7 +89,7 @@ Halo Scan exists to make that cheap and intentional:
 
 All paths are confined to the workspace root (`--cwd`).
 
-26 tools are listed. A handful of **unlisted aliases** are accepted by
+32 tools are listed (26 live-tree tools + 6 encyclopedia tools from Encircle). A handful of **unlisted aliases** are accepted by
 `tools/call` at zero schema cost, because models reach for them anyway:
 `search` / `grep` / `rg` / `search_code` → `grep_search` (`query` → `pattern`),
 `open_file` / `view_file` / `cat` → `read_file` (`start_line`/`end_line` →
@@ -112,10 +112,16 @@ grouped into packs. `--profile` selects which packs appear in `tools/list`:
 
 | Profile | Tools |
 | --- | --- |
-| *(default)* / `full` | All 26 tools |
+| *(default)* / `full` | All 32 tools |
 | `base` | Orientation, fs, search, core symbols, git + `activate_pack` |
-| `symbols` / `quality` / `web` / `config` | `base` ∪ that pack + `activate_pack` |
-| `auto` | Fingerprint the repo: `base` + up to 2 secondary packs (priority `symbols` > `quality` > `web` > `config`) + `activate_pack` |
+| `symbols` / `quality` / `web` / `config` / `encyclopedia` | `base` ∪ that pack + `activate_pack` |
+| `auto` | Fingerprint the repo: `base` + up to 2 secondary packs (priority `symbols` > `quality` > `web` > `config` > `encyclopedia`) + `activate_pack` |
+
+The `encyclopedia` pack exposes Encircle’s store tools (`encyclopedia_overview`,
+`encyclopedia_query`, `encyclopedia_fact`, `encyclopedia_view`, `encyclopedia_scan`,
+`encyclopedia_analyze`). Halo Scan lazy-loads `@bitfieldcreek/encircle` (sibling
+`../encircle` checkout or installed package). `auto` selects it when
+`.encircle/encircle.json` is already present.
 
 `activate_pack` expands the live toolset and emits `notifications/tools/list_changed`
 so hosts can re-list. Newly added tools are available on the next turn. Library

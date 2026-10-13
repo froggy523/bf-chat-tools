@@ -6,6 +6,7 @@ import { createToolRegistry } from "../tool-registry.mjs";
 import { createChangeTools } from "./changes.mjs";
 import { createContextTools } from "./context.mjs";
 import { createDepsTools } from "./deps.mjs";
+import { createEncyclopediaTools } from "./encyclopedia.mjs";
 import { createFsTools } from "./fs.mjs";
 import { createGitTools } from "./git.mjs";
 import { createNavigateTools } from "./navigate.mjs";
@@ -41,7 +42,7 @@ export {
  * @param {string[]} [options.exclude] Hide these tool names (applied after
  *   include).
  * @param {string} [options.profile] Named pack profile (`base`, `symbols`,
- *   `quality`, `web`, `config`, `full`). Use `createManagedToolset` for
+ *   `quality`, `web`, `config`, `encyclopedia`, `full`). Use `createManagedToolset` for
  *   `auto` (async fingerprint) and for live `activate_pack`.
  * @returns {import("../mcp-server.mjs").McpTool[]}
  */
@@ -246,5 +247,6 @@ function createAllTools({ workspaceRoot }) {
     ...createDepsTools({ workspaceRoot }),
     ...createSurfaceTools({ workspaceRoot }),
     ...createGitTools({ workspaceRoot }),
+    ...createEncyclopediaTools({ workspaceRoot }),
   ];
 }

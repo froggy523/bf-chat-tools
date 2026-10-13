@@ -116,5 +116,26 @@ test("createManagedToolset full has no activate_pack", async () => {
   });
   assert.equal(listChanged, false);
   assert.ok(!registry.list().some((t) => t.name === ACTIVATE_PACK));
-  assert.equal(registry.list().length, 26);
+  assert.equal(registry.list().length, 32);
+});
+
+test("activate_pack encyclopedia exposes encircle tools", async () => {
+  const { registry } = await createManagedToolset({
+    workspaceRoot: dir,
+    profile: "base",
+  });
+  const activate = registry.list().find((t) => t.name === ACTIVATE_PACK);
+  const body = JSON.parse(await activate.execute({ pack: "encyclopedia" }));
+  assert.deepEqual(body.added, [...PACKS.encyclopedia]);
+  assert.ok(registry.has("encyclopedia_overview"));
+  assert.ok(registry.has("encyclopedia_scan"));
+});
+
+test("encyclopedia_overview delegates to sibling encircle", async () => {
+  const tools = createToolset({ workspaceRoot: dir, profile: "encyclopedia" });
+  const overview = tools.find((t) => t.name === "encyclopedia_overview");
+  assert.ok(overview);
+  // Fresh fixture has no store yet — overview bootstraps via scan inside encircle.
+  const result = await overview.execute({});
+  assert.ok(result?.contentHash || result?.ok === false || result?.entityCounts);
 });

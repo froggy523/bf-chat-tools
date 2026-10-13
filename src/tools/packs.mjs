@@ -9,6 +9,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { SKIP_DIRS } from "../workspace.mjs";
+import { ENCYCLOPEDIA_TOOL_NAMES } from "./encyclopedia.mjs";
 
 /** Meta-tool name injected when a non-full profile is active. */
 export const ACTIVATE_PACK = "activate_pack";
@@ -50,6 +51,7 @@ export const PACKS = Object.freeze({
   ]),
   web: Object.freeze(["http_surface"]),
   config: Object.freeze(["config_surface", "config_key_usage", "who_imports"]),
+  encyclopedia: Object.freeze([...ENCYCLOPEDIA_TOOL_NAMES]),
 });
 
 /** Secondary packs only (fingerprint / activate_pack targets). */
@@ -58,7 +60,13 @@ export const SECONDARY_PACKS = Object.freeze(
 );
 
 /** Fingerprint priority when capping auto at base + 2 secondary packs. */
-const FINGERPRINT_PRIORITY = Object.freeze(["symbols", "quality", "web", "config"]);
+const FINGERPRINT_PRIORITY = Object.freeze([
+  "symbols",
+  "quality",
+  "web",
+  "config",
+  "encyclopedia",
+]);
 
 const CODE_LANGS = new Set([
   "JavaScript",
@@ -196,6 +204,7 @@ export async function fingerprintWorkspace(root) {
   if (await hasTestSignals(abs)) wanted.add("quality");
   if (await hasWebSignals(abs)) wanted.add("web");
   if (await hasConfigSignals(abs)) wanted.add("config");
+  if (await hasEncyclopediaSignals(abs)) wanted.add("encyclopedia");
 
   const selected = [];
   for (const pack of FINGERPRINT_PRIORITY) {
@@ -289,6 +298,15 @@ async function hasConfigSignals(root) {
     return false;
   }
   return entries.some((n) => /^\.env(\.|$)/i.test(n) && /example|sample|template/i.test(n));
+}
+
+async function hasEncyclopediaSignals(root) {
+  try {
+    await readFile(path.join(root, ".encircle", "encircle.json"));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function readManifestBlobs(root) {

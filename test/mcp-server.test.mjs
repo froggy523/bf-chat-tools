@@ -169,7 +169,7 @@ test("initialize handshake reports halo-scan", () => {
 test("tools/list includes Q&A surface", async () => {
   const tools = await client.listTools();
   const names = tools.map((t) => t.name).sort();
-  assert.equal(names.length, 26, `expected 26 tools, got ${names.length}: ${names.join(", ")}`);
+  assert.equal(names.length, 32, `expected 32 tools, got ${names.length}: ${names.join(", ")}`);
   for (const culled of ["imports_of", "recent_focus", "manifest_summary", "doc_toc", "type_hierarchy", "symbol_history", "get_symbols", "read_many", "packages_map"]) {
     assert.ok(!names.includes(culled), `culled tool ${culled} still listed`);
   }
