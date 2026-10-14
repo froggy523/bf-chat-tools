@@ -12,6 +12,10 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { STORE_REL, ensureProjectStore } from "../store.mjs";
+
+const STORE_REL_POSIX = STORE_REL.replace(/\\/g, "/");
+
 /**
  * Subjective Ollama analysis over the encyclopedia briefing. Kept off the
  * MCP surface while still under development — flip to true to re-expose.
@@ -40,7 +44,12 @@ async function loadEncircleTools(workspaceRoot) {
   if (!mod?.createEncyclopediaTools) {
     throw new Error(MISSING_MSG);
   }
-  return mod.createEncyclopediaTools({ workspaceRoot });
+  const root = path.resolve(workspaceRoot ?? process.cwd());
+  const { artifactPath } = await ensureProjectStore(root);
+  return mod.createEncyclopediaTools({
+    workspaceRoot: root,
+    artifactPath,
+  });
 }
 
 async function importEncircle() {
@@ -151,7 +160,7 @@ export function createEncyclopediaTools({ workspaceRoot } = {}) {
     ),
     wrap(
       "encyclopedia_scan",
-      "Refresh the encyclopedia: run scanners and write .bitfield/encircle/encircle.json, markdown views, " +
+      `Refresh the encyclopedia: run scanners and write ${STORE_REL_POSIX}/encircle.json, markdown views, ` +
         "scan-index.json, and slices. Default is incremental. Pass full=true to force every scanner. " +
         "Requires @bitfieldcreek/encircle.",
       {
@@ -159,7 +168,7 @@ export function createEncyclopediaTools({ workspaceRoot } = {}) {
         properties: {
           out: {
             type: "string",
-            description: "Output directory (default: <cwd>/.bitfield/encircle)",
+            description: `Output directory (default: <cwd>/${STORE_REL_POSIX})`,
           },
           full: {
             type: "boolean",
@@ -200,7 +209,7 @@ export function createEncyclopediaTools({ workspaceRoot } = {}) {
                 },
                 out: {
                   type: "string",
-                  description: "Output directory (default: <cwd>/.bitfield/encircle).",
+                  description: `Output directory (default: <cwd>/${STORE_REL_POSIX}).`,
                 },
               },
             },

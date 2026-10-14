@@ -139,3 +139,15 @@ test("encyclopedia_overview delegates to sibling encircle", async () => {
   const result = await overview.execute({});
   assert.ok(result?.contentHash || result?.ok === false || result?.entityCounts);
 });
+
+test("fingerprintWorkspace detects .bf/bf-chat-tools/encyclopedia store", async () => {
+  const alone = await mkdtemp(path.join(os.tmpdir(), "halo-scan-enc-"));
+  try {
+    const encDir = path.join(alone, ".bf", "bf-chat-tools", "encyclopedia");
+    await mkdir(encDir, { recursive: true });
+    await writeFile(path.join(encDir, "encircle.json"), '{"schemaVersion":1}\n');
+    assert.deepEqual(await fingerprintWorkspace(alone), ["encyclopedia"]);
+  } finally {
+    await rm(alone, { recursive: true, force: true });
+  }
+});

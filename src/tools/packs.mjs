@@ -302,6 +302,9 @@ async function hasConfigSignals(root) {
 
 async function hasEncyclopediaSignals(root) {
   for (const rel of [
+    path.join(".bf", "bf-chat-tools", "encyclopedia", "encircle.json"),
+    path.join(".bf", "bf-chat-tools", "encircle.json"),
+    path.join(".bitfield", "bf-chat-tools", "encircle.json"),
     path.join(".bitfield", "encircle", "encircle.json"),
     path.join(".encircle", "encircle.json"),
   ]) {

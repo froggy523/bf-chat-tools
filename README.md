@@ -122,8 +122,10 @@ The `encyclopedia` pack exposes Encircle’s store tools (`encyclopedia_overview
 `encyclopedia_query`, `encyclopedia_fact`, `encyclopedia_view`, `encyclopedia_scan`).
 `encyclopedia_analyze` (subjective Ollama analysis) is disabled while under
 development. Halo Scan lazy-loads `@bitfieldcreek/encircle` (sibling
-`../encircle` checkout or installed package). `auto` selects it when
-`.bitfield/encircle/encircle.json` is already present.
+`../encircle` checkout or installed package). Store artifacts land under
+`.bf/bf-chat-tools/<tool>/` (encyclopedia → `.bf/bf-chat-tools/encyclopedia/`).
+Legacy flat or encircle-named stores are moved there on first use. `auto`
+selects the pack when that store (or a legacy path) already has `encircle.json`.
 
 `activate_pack` expands the live toolset and emits `notifications/tools/list_changed`
 so hosts can re-list. Newly added tools are available on the next turn. Library

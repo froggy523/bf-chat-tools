@@ -33,3 +33,18 @@ export {
   globToRegExp,
   truncateOutput,
 } from "./workspace.mjs";
+export {
+  BF_DIRNAME,
+  BITFIELD_DIRNAME,
+  PRODUCT_DIRNAME,
+  STORE_ROOT_REL,
+  ENCYCLOPEDIA_TOOL,
+  STORE_REL,
+  LEGACY_STORE_RELS,
+  toolStoreRel,
+  toolStoreDir,
+  storeDir,
+  storeArtifactPath,
+  ensureToolStore,
+  ensureProjectStore,
+} from "./store.mjs";
