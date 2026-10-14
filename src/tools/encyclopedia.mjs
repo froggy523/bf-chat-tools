@@ -12,6 +12,12 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+/**
+ * Subjective Ollama analysis over the encyclopedia briefing. Kept off the
+ * MCP surface while still under development — flip to true to re-expose.
+ */
+const ENABLE_ENCYCLOPEDIA_ANALYZE = false;
+
 /** @type {readonly string[]} */
 export const ENCYCLOPEDIA_TOOL_NAMES = Object.freeze([
   "encyclopedia_overview",
@@ -19,7 +25,7 @@ export const ENCYCLOPEDIA_TOOL_NAMES = Object.freeze([
   "encyclopedia_fact",
   "encyclopedia_view",
   "encyclopedia_scan",
-  "encyclopedia_analyze",
+  ...(ENABLE_ENCYCLOPEDIA_ANALYZE ? ["encyclopedia_analyze"] : []),
 ]);
 
 const MISSING_MSG =
@@ -145,7 +151,7 @@ export function createEncyclopediaTools({ workspaceRoot } = {}) {
     ),
     wrap(
       "encyclopedia_scan",
-      "Refresh the encyclopedia: run scanners and write .encircle/encircle.json, markdown views, " +
+      "Refresh the encyclopedia: run scanners and write .bitfield/encircle/encircle.json, markdown views, " +
         "scan-index.json, and slices. Default is incremental. Pass full=true to force every scanner. " +
         "Requires @bitfieldcreek/encircle.",
       {
@@ -153,7 +159,7 @@ export function createEncyclopediaTools({ workspaceRoot } = {}) {
         properties: {
           out: {
             type: "string",
-            description: "Output directory (default: <cwd>/.encircle)",
+            description: "Output directory (default: <cwd>/.bitfield/encircle)",
           },
           full: {
             type: "boolean",
@@ -162,40 +168,44 @@ export function createEncyclopediaTools({ workspaceRoot } = {}) {
         },
       },
     ),
-    wrap(
-      "encyclopedia_analyze",
-      "Subjective local-LLM analysis via Ollama over the encyclopedia briefing (not raw source). " +
-        "Writes analysis.md / analysis.json / analysis-index.json. Skips Ollama when analysis-index is fresh. " +
-        "Requires a running Ollama daemon and @bitfieldcreek/encircle. Pass scan=true to refresh first; force=true to regen.",
-      {
-        type: "object",
-        properties: {
-          model: {
-            type: "string",
-            description: "Ollama model name (default: OLLAMA_MODEL or llama3.2).",
-          },
-          host: {
-            type: "string",
-            description: "Ollama base URL (default: OLLAMA_HOST or http://127.0.0.1:11434).",
-          },
-          scan: {
-            type: "boolean",
-            description: "Refresh encyclopedia (incremental) before analyzing.",
-          },
-          full: {
-            type: "boolean",
-            description: "With scan=true, force every scanner.",
-          },
-          force: {
-            type: "boolean",
-            description: "Regen analysis even when analysis-index is fresh.",
-          },
-          out: {
-            type: "string",
-            description: "Output directory (default: <cwd>/.encircle).",
-          },
-        },
-      },
-    ),
+    ...(ENABLE_ENCYCLOPEDIA_ANALYZE
+      ? [
+          wrap(
+            "encyclopedia_analyze",
+            "Subjective local-LLM analysis via Ollama over the encyclopedia briefing (not raw source). " +
+              "Writes analysis.md / analysis.json / analysis-index.json. Skips Ollama when analysis-index is fresh. " +
+              "Requires a running Ollama daemon and @bitfieldcreek/encircle. Pass scan=true to refresh first; force=true to regen.",
+            {
+              type: "object",
+              properties: {
+                model: {
+                  type: "string",
+                  description: "Ollama model name (default: OLLAMA_MODEL or llama3.2).",
+                },
+                host: {
+                  type: "string",
+                  description: "Ollama base URL (default: OLLAMA_HOST or http://127.0.0.1:11434).",
+                },
+                scan: {
+                  type: "boolean",
+                  description: "Refresh encyclopedia (incremental) before analyzing.",
+                },
+                full: {
+                  type: "boolean",
+                  description: "With scan=true, force every scanner.",
+                },
+                force: {
+                  type: "boolean",
+                  description: "Regen analysis even when analysis-index is fresh.",
+                },
+                out: {
+                  type: "string",
+                  description: "Output directory (default: <cwd>/.bitfield/encircle).",
+                },
+              },
+            },
+          ),
+        ]
+      : []),
   ];
 }

@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Encircle: analyze aura-terran",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/../encircle",
+      "program": "${workspaceFolder}/../encircle/src/cli.mjs",
+      "args": ["analyze", "--cwd", "D:/source/repos/halo/aura-terran"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

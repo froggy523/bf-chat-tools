@@ -1,6 +1,6 @@
 /**
  * Minimal stdio MCP server: newline-delimited JSON-RPC 2.0.
- * Compatible with Bitfield Agent's McpClient (initialize, tools/list, tools/call).
+ * Compatible with Bitfield Ollama Agent's McpClient (initialize, tools/list, tools/call).
  */
 
 import readline from "node:readline";

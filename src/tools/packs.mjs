@@ -301,12 +301,18 @@ async function hasConfigSignals(root) {
 }
 
 async function hasEncyclopediaSignals(root) {
-  try {
-    await readFile(path.join(root, ".encircle", "encircle.json"));
-    return true;
-  } catch {
-    return false;
+  for (const rel of [
+    path.join(".bitfield", "encircle", "encircle.json"),
+    path.join(".encircle", "encircle.json"),
+  ]) {
+    try {
+      await readFile(path.join(root, rel));
+      return true;
+    } catch {
+      // try next
+    }
   }
+  return false;
 }
 
 async function readManifestBlobs(root) {

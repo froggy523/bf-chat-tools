@@ -6,7 +6,7 @@
  *   halo-scan [--cwd <dir>]
  *   node src/cli.mjs --cwd /path/to/repo
  *
- * Attach from Bitfield Agent:
+ * Attach from Bitfield Ollama Agent:
  *   bf-agent --mcp "halo-scan --cwd ."
  */
 
@@ -50,12 +50,13 @@ Tools:
   change    changed_symbols, git_history
   quality   tests_for, test_inventory, unused_exports, config_key_usage, http_surface
   encyclopedia  encyclopedia_overview, encyclopedia_query, encyclopedia_fact,
-            encyclopedia_view, encyclopedia_scan, encyclopedia_analyze
+            encyclopedia_view, encyclopedia_scan
+            (encyclopedia_analyze disabled while under development)
   read      read_file, list_dir
   meta      activate_pack (when --profile is not full)
   Unlisted aliases (search, open_file, get_symbols, read_many, symbol_history, …) map onto these.
 
-Attach with Bitfield Agent:
+Attach with Bitfield Ollama Agent:
   bf-agent --mcp "halo-scan --cwd ."
 `);
 }

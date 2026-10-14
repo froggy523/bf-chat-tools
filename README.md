@@ -4,7 +4,7 @@ Stdio [MCP](https://modelcontextprotocol.io) server that gives an AI model a
 small, read-only toolset for answering questions about a codebase in a working
 directory.
 
-Zero npm dependencies. Compatible with Bitfield Agent (`bf-agent --mcp`) and
+Zero npm dependencies. Compatible with Bitfield Ollama Agent (`bf-agent --mcp`) and
 other MCP clients that speak newline-delimited JSON-RPC over stdio.
 
 Package: [`@bitfieldcreek/halo-scan`](https://www.npmjs.com/package/@bitfieldcreek/halo-scan) ·
@@ -27,7 +27,7 @@ Halo Scan exists to make that cheap and intentional:
 - **Stay read-only and local.** Paths are confined to `--cwd`. No write/edit,
   no test runners, no secret values from env files — only names and structure.
 - **Stay small.** Zero npm dependencies, stdio MCP only. Easy to attach to
-  Bitfield Agent or any host that speaks newline-delimited JSON-RPC.
+  Bitfield Ollama Agent or any host that speaks newline-delimited JSON-RPC.
 
 ## Tools
 
@@ -89,7 +89,8 @@ Halo Scan exists to make that cheap and intentional:
 
 All paths are confined to the workspace root (`--cwd`).
 
-32 tools are listed (26 live-tree tools + 6 encyclopedia tools from Encircle). A handful of **unlisted aliases** are accepted by
+31 tools are listed (26 live-tree tools + 5 encyclopedia tools from Encircle;
+`encyclopedia_analyze` is disabled while under development). A handful of **unlisted aliases** are accepted by
 `tools/call` at zero schema cost, because models reach for them anyway:
 `search` / `grep` / `rg` / `search_code` → `grep_search` (`query` → `pattern`),
 `open_file` / `view_file` / `cat` → `read_file` (`start_line`/`end_line` →
@@ -112,16 +113,17 @@ grouped into packs. `--profile` selects which packs appear in `tools/list`:
 
 | Profile | Tools |
 | --- | --- |
-| *(default)* / `full` | All 32 tools |
+| *(default)* / `full` | All 31 tools |
 | `base` | Orientation, fs, search, core symbols, git + `activate_pack` |
 | `symbols` / `quality` / `web` / `config` / `encyclopedia` | `base` ∪ that pack + `activate_pack` |
 | `auto` | Fingerprint the repo: `base` + up to 2 secondary packs (priority `symbols` > `quality` > `web` > `config` > `encyclopedia`) + `activate_pack` |
 
 The `encyclopedia` pack exposes Encircle’s store tools (`encyclopedia_overview`,
-`encyclopedia_query`, `encyclopedia_fact`, `encyclopedia_view`, `encyclopedia_scan`,
-`encyclopedia_analyze`). Halo Scan lazy-loads `@bitfieldcreek/encircle` (sibling
+`encyclopedia_query`, `encyclopedia_fact`, `encyclopedia_view`, `encyclopedia_scan`).
+`encyclopedia_analyze` (subjective Ollama analysis) is disabled while under
+development. Halo Scan lazy-loads `@bitfieldcreek/encircle` (sibling
 `../encircle` checkout or installed package). `auto` selects it when
-`.encircle/encircle.json` is already present.
+`.bitfield/encircle/encircle.json` is already present.
 
 `activate_pack` expands the live toolset and emits `notifications/tools/list_changed`
 so hosts can re-list. Newly added tools are available on the next turn. Library
@@ -199,7 +201,7 @@ npm link
 halo-scan --cwd .
 ```
 
-### Bitfield Agent
+### Bitfield Ollama Agent
 
 ```bash
 bf-agent --mcp "halo-scan --cwd ."

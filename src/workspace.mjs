@@ -10,6 +10,8 @@ export const SKIP_DIRS = new Set([
   ".git",
   ".halo-agent",
   ".halo-scan",
+  ".bitfield",
+  ".encircle",
   ".hg",
   ".svn",
   ".next",

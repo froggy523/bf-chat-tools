@@ -10,7 +10,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = path.join(ROOT, "src", "cli.mjs");
 
 /**
- * Tiny stdio MCP client for tests (mirrors Bitfield Agent's wire format).
+ * Tiny stdio MCP client for tests (mirrors Bitfield Ollama Agent's wire format).
  */
 class TestClient {
   static async connect(command, args, { cwd, env } = {}) {
@@ -169,8 +169,8 @@ test("initialize handshake reports halo-scan", () => {
 test("tools/list includes Q&A surface", async () => {
   const tools = await client.listTools();
   const names = tools.map((t) => t.name).sort();
-  assert.equal(names.length, 32, `expected 32 tools, got ${names.length}: ${names.join(", ")}`);
-  for (const culled of ["imports_of", "recent_focus", "manifest_summary", "doc_toc", "type_hierarchy", "symbol_history", "get_symbols", "read_many", "packages_map"]) {
+  assert.equal(names.length, 31, `expected 31 tools, got ${names.length}: ${names.join(", ")}`);
+  for (const culled of ["imports_of", "recent_focus", "manifest_summary", "doc_toc", "type_hierarchy", "symbol_history", "get_symbols", "read_many", "packages_map", "encyclopedia_analyze"]) {
     assert.ok(!names.includes(culled), `culled tool ${culled} still listed`);
   }
   for (const expected of [

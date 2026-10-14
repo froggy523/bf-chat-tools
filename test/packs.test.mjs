@@ -116,7 +116,7 @@ test("createManagedToolset full has no activate_pack", async () => {
   });
   assert.equal(listChanged, false);
   assert.ok(!registry.list().some((t) => t.name === ACTIVATE_PACK));
-  assert.equal(registry.list().length, 32);
+  assert.equal(registry.list().length, 31);
 });
 
 test("activate_pack encyclopedia exposes encircle tools", async () => {
